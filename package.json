@@ -1,0 +1,37 @@
+{
+  "name": "zafari-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Zafari CRS API - safari property management and booking operations",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "zafari",
+    "crs",
+    "safari",
+    "booking",
+    "hospitality"
+  ],
+  "author": "Zafari",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "axios": "^1.7.7",
+    "cookie-parser": "^1.4.6",
+    "express": "^4.21.1",
+    "jose": "^5.2.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.7",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3"
+  }
+}
