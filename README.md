@@ -1,405 +1,383 @@
-# Zafari MCP Server
+# Zafari MCP Server with OAuth 2.1
 
-A Model Context Protocol (MCP) server for the Zafari CRS API, enabling AI assistants to manage safari property operations including bookings, room inventory, rates, extra services, and webhooks.
+A Model Context Protocol (MCP) server for the Zafari CRS API with OAuth 2.1 authentication, enabling secure remote access from Claude Desktop and other MCP clients for managing safari property operations.
 
-## Features
+## 🌟 Features
 
-- **Property Management**: List and view safari properties
-- **Room Operations**: 
-  - List room types
-  - Check availability
-  - Manage rates (resident/non-resident)
-  - Update inventory levels
-- **Extra Services**: 
-  - List add-ons (park fees, activities, etc.)
-  - Check availability
-  - Update capacity
-- **Booking Management**:
-  - List and filter bookings
-  - Create new bookings
-  - Update booking status
-  - Retrieve booking details
-- **Webhook Configuration**: Set up event notifications
+- **🔐 OAuth 2.1 Authentication**: Secure token-based authentication for Claude Desktop
+- **🏨 Property Management**: List and view safari properties
+- **🛏️ Room Operations**: Availability, rates, and inventory management
+- **✨ Extra Services**: Park fees, activities, and add-on management
+- **📅 Booking Management**: Create, list, update, and track bookings
+- **🔔 Webhook Configuration**: Event notification setup
 
-## Installation
+## 🚀 Quick Start for Claude Desktop
 
 ### Prerequisites
 
-- Node.js 18+ with npm
+- Node.js 18+
 - Zafari CRS API key
-- TypeScript 5.6+
+- Claude Desktop (Pro, Max, Team, or Enterprise plan)
 
-### Setup
+### Installation
 
-1. **Clone or create project directory**:
 ```bash
-mkdir zafari-mcp-server
-cd zafari-mcp-server
-```
-
-2. **Install dependencies**:
-```bash
+# Install dependencies
 npm install
-```
 
-3. **Build the project**:
-```bash
+# Configure environment
+cp .env.example .env
+# Edit .env and set ZAFARI_API_KEY
+
+# Build the project
 npm run build
+
+# Start server with OAuth
+TRANSPORT=http npm start
 ```
 
-4. **Set up environment**:
-```bash
-export ZAFARI_API_KEY="your-api-key-here"
-```
+### Add to Claude Desktop
 
-## Usage
+1. Open Claude Desktop → **Settings > Connectors**
+2. Click **"Add custom connector"**
+3. Enter URL: `http://localhost:3000/mcp`
+4. Click **"Add"**
+5. Browser opens → Login with `demo` / `demo123`
+6. Click **"Authorize"**
+7. Done! ✨
 
-### Stdio Transport (Local/CLI)
+**📖 Detailed Setup Guide**: See [CLAUDE_DESKTOP_SETUP.md](CLAUDE_DESKTOP_SETUP.md)
 
-For integration with local MCP clients:
+## 📋 Available Tools
 
-```bash
-ZAFARI_API_KEY=your-api-key node dist/index.js
-```
+### Properties
+- `zafari_list_properties` - Fetch all safari properties/lodges
 
-### HTTP Transport (Remote)
+### Rooms
+- `zafari_list_rooms` - Get room types for a property
+- `zafari_get_room_availability` - Check daily availability
+- `zafari_get_room_rates` - Retrieve pricing
+- `zafari_update_room_availability` - Set availability levels
+- `zafari_update_room_rates` - Update pricing
 
-For remote access or web integrations:
+### Bookings
+- `zafari_list_bookings` - List bookings with filters
+- `zafari_get_booking` - Get booking details
+- `zafari_create_booking` - Create new booking
+- `zafari_update_booking_status` - Update status
 
-```bash
-ZAFARI_API_KEY=your-api-key TRANSPORT=http PORT=3000 node dist/index.js
-```
+### Extra Services
+- `zafari_list_extra_services` - List add-ons (park fees, activities)
+- `zafari_get_extra_service_availability` - Check availability
+- `zafari_update_extra_service_availability` - Update capacity
 
-The server will be available at `http://localhost:3000/mcp`
+### Webhooks
+- `zafari_get_webhook_config` - Get webhook settings
+- `zafari_update_webhook_config` - Configure notifications
 
-## Available Tools
-
-### Property Tools
-
-#### `zafari_list_properties`
-Fetch all properties in the system.
-
-**Parameters:**
-- `response_format`: 'markdown' | 'json' (default: 'markdown')
-
-**Example:**
-```json
-{
-  "response_format": "json"
-}
-```
-
----
-
-### Room Tools
-
-#### `zafari_list_rooms`
-List all room types for a property.
-
-**Parameters:**
-- `property_id`: string (required)
-- `response_format`: 'markdown' | 'json'
-
-#### `zafari_get_room_availability`
-Check daily availability for a room type.
-
-**Parameters:**
-- `property_id`: string (required)
-- `room_id`: string (required)
-- `from`: string YYYY-MM-DD (required)
-- `to`: string YYYY-MM-DD (required)
-- `response_format`: 'markdown' | 'json'
-
-**Example:**
-```json
-{
-  "property_id": "prop_abc123",
-  "room_id": "room_xyz789",
-  "from": "2025-01-01",
-  "to": "2025-01-31",
-  "response_format": "json"
-}
-```
-
-#### `zafari_get_room_rates`
-Retrieve daily rates for a room type.
-
-**Parameters:**
-- `property_id`: string (required)
-- `room_id`: string (required)
-- `from`: string YYYY-MM-DD (required)
-- `to`: string YYYY-MM-DD (required)
-- `resident_type`: 'resident' | 'non_resident' (optional)
-- `response_format`: 'markdown' | 'json'
-
-#### `zafari_update_room_availability`
-Update availability for a room across a date range.
-
-**Parameters:**
-- `property_id`: string (required)
-- `room_id`: string (required)
-- `from`: string YYYY-MM-DD (required)
-- `to`: string YYYY-MM-DD (required)
-- `availability`: number | null (required, null = unlimited)
-
-**Example:**
-```json
-{
-  "property_id": "prop_abc123",
-  "room_id": "room_xyz789",
-  "from": "2025-01-01",
-  "to": "2025-01-31",
-  "availability": 5
-}
-```
-
-#### `zafari_update_room_rates`
-Update rates for a room type.
-
-**Parameters:**
-- `property_id`: string (required)
-- `room_id`: string (required)
-- `from`: string YYYY-MM-DD (required)
-- `to`: string YYYY-MM-DD (required)
-- `rate`: number (required, must be positive)
-- `resident_type`: 'resident' | 'non_resident' (required)
-
----
-
-### Extra Service Tools
-
-#### `zafari_list_extra_services`
-List all extra services/add-ons for a property.
-
-**Parameters:**
-- `property_id`: string (required)
-- `response_format`: 'markdown' | 'json'
-
-#### `zafari_get_extra_service_availability`
-Check availability for an extra service.
-
-**Parameters:**
-- `property_id`: string (required)
-- `extra_service_id`: string UUID (required)
-- `from`: string YYYY-MM-DD (required)
-- `to`: string YYYY-MM-DD (required)
-- `response_format`: 'markdown' | 'json'
-
-#### `zafari_update_extra_service_availability`
-Update capacity for an extra service.
-
-**Parameters:**
-- `property_id`: string (required)
-- `extra_service_id`: string UUID (required)
-- `from`: string YYYY-MM-DD (required)
-- `to`: string YYYY-MM-DD (required)
-- `availability`: number | null (required, null = unlimited)
-
----
-
-### Booking Tools
-
-#### `zafari_list_bookings`
-List bookings with optional filters.
-
-**Parameters:**
-- `property_id`: string (required)
-- `status`: 'pending' | 'confirmed' | 'cancelled' | 'completed' (optional)
-- `from_date`: string YYYY-MM-DD (optional)
-- `to_date`: string YYYY-MM-DD (optional)
-- `limit`: number 1-100 (default: 50)
-- `offset`: number (default: 0)
-- `response_format`: 'markdown' | 'json'
-
-**Example:**
-```json
-{
-  "property_id": "prop_abc123",
-  "status": "confirmed",
-  "from_date": "2025-01-01",
-  "limit": 20,
-  "response_format": "json"
-}
-```
-
-#### `zafari_get_booking`
-Get details for a specific booking.
-
-**Parameters:**
-- `property_id`: string (required)
-- `booking_id`: string (required)
-- `response_format`: 'markdown' | 'json'
-
-#### `zafari_create_booking`
-Create a new booking.
-
-**Parameters:**
-- `property_id`: string (required)
-- `check_in`: string YYYY-MM-DD (required)
-- `check_out`: string YYYY-MM-DD (required)
-- `guest_first_name`: string (required)
-- `guest_last_name`: string (required)
-- `guest_email`: string email (required)
-- `guest_phone`: string (optional)
-- `guest_country`: string (optional)
-- `rooms`: array of `{room_id: string, quantity: number}` (required, min: 1)
-- `extras`: array of `{extra_service_id: string, quantity: number}` (optional)
-
-**Example:**
-```json
-{
-  "property_id": "prop_abc123",
-  "check_in": "2025-02-01",
-  "check_out": "2025-02-05",
-  "guest_first_name": "John",
-  "guest_last_name": "Doe",
-  "guest_email": "john.doe@example.com",
-  "guest_phone": "+1234567890",
-  "rooms": [
-    {"room_id": "room_xyz789", "quantity": 2}
-  ],
-  "extras": [
-    {"extra_service_id": "extra_abc123", "quantity": 4}
-  ]
-}
-```
-
-#### `zafari_update_booking_status`
-Update booking status.
-
-**Parameters:**
-- `property_id`: string (required)
-- `booking_id`: string (required)
-- `status`: 'pending' | 'confirmed' | 'cancelled' | 'completed' (required)
-
----
-
-### Webhook Tools
-
-#### `zafari_get_webhook_config`
-Retrieve webhook configuration.
-
-**Parameters:**
-- `property_id`: string (required)
-
-#### `zafari_update_webhook_config`
-Configure webhook settings.
-
-**Parameters:**
-- `property_id`: string (required)
-- `url`: string URL (required, must be valid HTTPS)
-- `events`: array of strings (required, min: 1)
-- `rooms`: array of strings (optional)
-- `extra_services`: array of strings (optional)
-
-**Example:**
-```json
-{
-  "property_id": "prop_abc123",
-  "url": "https://example.com/webhooks/zafari",
-  "events": ["booking.created", "booking.updated", "availability.updated"],
-  "rooms": ["room_xyz789"]
-}
-```
-
-## Configuration
+## ⚙️ Configuration
 
 ### Environment Variables
 
-- `ZAFARI_API_KEY` (required): Your Zafari CRS API key
-- `TRANSPORT` (optional): Transport type - 'stdio' (default) or 'http'
-- `PORT` (optional): HTTP server port (default: 3000, only for http transport)
+```env
+# Required
+ZAFARI_API_KEY=your-api-key
 
-### API Configuration
+# Server Configuration
+TRANSPORT=http           # Use 'http' for OAuth, 'stdio' for legacy
+HOST=localhost
+PORT=3000
 
-The server connects to:
-- **Base URL**: `https://api.be.zafari.africa/v2`
-- **Auth Header**: `x-api-key`
+# OAuth Security
+JWT_SECRET=<random-secret>   # Generate: openssl rand -base64 32
+OAUTH_ISSUER=zafari-mcp-server
+OAUTH_AUDIENCE=zafari-mcp-api
 
-## Development
+# Development Credentials
+ADMIN_PASSWORD=change-me
+DEMO_PASSWORD=demo123
+```
 
-### Project Structure
+### Transport Modes
+
+**HTTP Mode (Recommended for Claude Desktop)**:
+```bash
+TRANSPORT=http npm start
+```
+- OAuth 2.1 authentication
+- Remote access support
+- Compatible with Claude Desktop 2025+
+
+**Stdio Mode (Legacy)**:
+```bash
+TRANSPORT=stdio npm start
+```
+- Local CLI usage
+- No authentication
+- For testing with MCP Inspector
+
+## 🔒 OAuth 2.1 Authentication
+
+### Authentication Flow
+
+1. **Client requests access** → `/oauth/authorize`
+2. **User authenticates** → Browser login page
+3. **Server issues code** → Authorization code with PKCE
+4. **Client exchanges code** → Access token (JWT)
+5. **Client uses token** → Bearer token for MCP calls
+
+### OAuth Endpoints
+
+- **Authorization**: `http://localhost:3000/oauth/authorize`
+- **Token Exchange**: `http://localhost:3000/oauth/token`
+- **Server Metadata**: `http://localhost:3000/.well-known/oauth-authorization-server`
+- **Protected MCP**: `http://localhost:3000/mcp`
+
+### Security Features
+
+✅ **JWT Tokens**: 1-hour access tokens with signature verification
+✅ **Refresh Tokens**: 30-day refresh tokens for long-term access
+✅ **PKCE Support**: Proof Key for Code Exchange for public clients
+✅ **Scope Management**: Fine-grained permission control
+✅ **Redirect Validation**: HTTPS enforcement for production
+
+## 📚 Documentation
+
+### User Guides
+- **[CLAUDE_DESKTOP_SETUP.md](CLAUDE_DESKTOP_SETUP.md)** - Complete Claude Desktop setup guide
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Quick command reference
+
+### Technical Documentation
+- **[OAUTH_SETUP.md](OAUTH_SETUP.md)** - OAuth 2.1 implementation details
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Deployment and testing guide
+
+### Tutorials
+- **[TUTORIAL_BUILD_MCP_WITH_OAUTH.md](TUTORIAL_BUILD_MCP_WITH_OAUTH.md)** - Build your own OAuth MCP server
+
+## 🏗️ Project Structure
 
 ```
 zafari-mcp-server/
 ├── src/
-│   ├── index.ts              # Main server entry point
-│   ├── types.ts              # TypeScript type definitions
-│   ├── constants.ts          # Configuration constants
+│   ├── index.ts              # Main server with OAuth
+│   ├── types.ts              # TypeScript definitions
+│   ├── constants.ts          # Configuration
 │   ├── schemas/
 │   │   └── index.ts          # Zod validation schemas
 │   ├── services/
-│   │   ├── api-client.ts     # API client with error handling
-│   │   └── formatters.ts     # Response formatting utilities
+│   │   ├── api-client.ts     # Zafari API client
+│   │   ├── formatters.ts     # Response formatting
+│   │   └── oauth.ts          # OAuth utilities
+│   ├── routes/
+│   │   └── oauth.ts          # OAuth endpoints
+│   ├── middleware/
+│   │   └── auth.ts           # Authentication middleware
 │   └── tools/
-│       ├── properties.ts     # Property management tools
-│       ├── rooms.ts          # Room operation tools
+│       ├── properties.ts     # Property tools
+│       ├── rooms.ts          # Room tools
 │       ├── extras.ts         # Extra service tools
-│       ├── bookings.ts       # Booking management tools
-│       └── webhooks.ts       # Webhook configuration tools
-├── dist/                     # Compiled JavaScript
-├── package.json
-├── tsconfig.json
-└── README.md
+│       ├── bookings.ts       # Booking tools
+│       └── webhooks.ts       # Webhook tools
+├── dist/                     # Compiled output
+├── .env.example              # Environment template
+└── README.md                 # This file
 ```
+
+## 🛠️ Development
 
 ### Scripts
 
-- `npm run build`: Compile TypeScript to JavaScript
-- `npm start`: Run the compiled server
-- `npm run dev`: Watch mode for development
-
-### Building
-
 ```bash
-npm run build
+npm run build    # Compile TypeScript
+npm start        # Run server
+npm run dev      # Watch mode
 ```
-
-Outputs to `dist/` directory with source maps.
 
 ### Testing
 
-Use MCP Inspector for testing:
-
+**With MCP Inspector**:
 ```bash
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
-## Error Handling
+**Manual OAuth Testing**:
+```bash
+# 1. Health check
+curl http://localhost:3000/health
 
-All tools include comprehensive error handling:
+# 2. OAuth metadata
+curl http://localhost:3000/.well-known/oauth-authorization-server
 
-- **400 Bad Request**: Invalid parameters or malformed data
-- **401 Unauthorized**: Invalid or missing API key
-- **403 Forbidden**: Insufficient permissions
-- **404 Not Found**: Resource doesn't exist
-- **429 Rate Limit**: Too many requests
-- **500 Server Error**: Internal server issues
+# 3. Get authorization (browser)
+open http://localhost:3000/oauth/authorize?response_type=code&client_id=test&redirect_uri=http://localhost:3000/callback
 
-Errors are returned with clear, actionable messages.
+# 4. Exchange code for token
+curl -X POST http://localhost:3000/oauth/token \
+  -d "grant_type=authorization_code" \
+  -d "code=YOUR_CODE" \
+  -d "client_id=test"
 
-## Security
+# 5. Use token
+curl -X POST http://localhost:3000/mcp \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
 
-- API key authentication required
-- HTTPS recommended for webhook endpoints
-- Input validation using Zod schemas
-- No sensitive data in logs
-- Rate limit handling
+## 🚢 Production Deployment
 
-## Support
+### Deployment Options
 
-For API issues or questions:
-- API Documentation: Contact Zafari team
-- MCP Server Issues: Check GitHub repository
+**Docker**:
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --production
+COPY dist ./dist
+ENV TRANSPORT=http PORT=3000
+CMD ["node", "dist/index.js"]
+```
 
-## License
+**Cloud Platforms**:
+- Railway, Render, Fly.io
+- AWS ECS, Google Cloud Run, Azure Container Apps
+- Set environment variables in platform dashboard
+
+**HTTPS Setup** (Required for production):
+```bash
+# Use reverse proxy (nginx, Apache, Caddy)
+# Or cloud platform with built-in SSL
+# Or CDN (Cloudflare, CloudFront)
+```
+
+### Production Checklist
+
+- [ ] Set strong `JWT_SECRET` (64+ characters)
+- [ ] Use HTTPS (required, not localhost)
+- [ ] Update `ADMIN_PASSWORD` and `DEMO_PASSWORD`
+- [ ] Set proper `OAUTH_ISSUER` and `OAUTH_AUDIENCE`
+- [ ] Implement real user authentication (not hardcoded)
+- [ ] Use database for token storage (not in-memory)
+- [ ] Add rate limiting
+- [ ] Enable monitoring and logging
+- [ ] Configure CORS properly
+- [ ] Add security headers
+
+## 🔍 API Examples
+
+### List Properties
+
+**Request**:
+```json
+{
+  "tool": "zafari_list_properties",
+  "params": {
+    "response_format": "json"
+  }
+}
+```
+
+### Create Booking
+
+**Request**:
+```json
+{
+  "tool": "zafari_create_booking",
+  "params": {
+    "property_id": "prop_123",
+    "check_in": "2025-02-01",
+    "check_out": "2025-02-05",
+    "guest_first_name": "John",
+    "guest_last_name": "Doe",
+    "guest_email": "john@example.com",
+    "rooms": [{"room_id": "room_456", "quantity": 1}]
+  }
+}
+```
+
+### Update Room Rates
+
+**Request**:
+```json
+{
+  "tool": "zafari_update_room_rates",
+  "params": {
+    "property_id": "prop_123",
+    "room_id": "room_456",
+    "from": "2025-03-01",
+    "to": "2025-03-31",
+    "rate": 500,
+    "resident_type": "non_resident"
+  }
+}
+```
+
+## 🐛 Troubleshooting
+
+### Server Won't Start
+
+```bash
+# Check API key is set
+echo $ZAFARI_API_KEY
+
+# Verify build completed
+npm run build
+
+# Check port availability
+lsof -i :3000
+```
+
+### OAuth Authentication Fails
+
+- Verify credentials: `demo` / `demo123`
+- Check JWT_SECRET is set
+- Review server logs for errors
+- Clear browser cookies
+
+### Claude Desktop Can't Connect
+
+```bash
+# 1. Verify server is running
+curl http://localhost:3000/health
+
+# 2. Test OAuth metadata
+curl http://localhost:3000/.well-known/oauth-authorization-server
+
+# 3. Check URL in connector settings (no typos)
+# 4. Restart Claude Desktop
+# 5. Try removing and re-adding connector
+```
+
+### Tools Not Working
+
+- Check ZAFARI_API_KEY is valid
+- Verify API key has correct permissions
+- Review server logs for API errors
+- Test API directly with curl
+
+## 🔗 Resources
+
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [OAuth 2.1 Specification](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1)
+- [Zafari CRS API](https://api.be.zafari.africa/docs)
+- [Claude Desktop](https://claude.ai/download)
+
+## 📄 License
 
 Apache-2.0
 
-## Version
+## 🤝 Support
 
-1.0.0
+For issues or questions:
+- **Zafari API**: Contact Zafari support team
+- **MCP Integration**: Review documentation in this repository
+- **OAuth Issues**: See [OAUTH_SETUP.md](OAUTH_SETUP.md)
 
 ---
 
-Built with the [Model Context Protocol](https://modelcontextprotocol.io/) SDK.
+**Version**: 2.0.0 (OAuth-enabled)
+**Built with**: MCP SDK v1.0.4, OAuth 2.1, Express, JWT (jose)
+**API**: Zafari CRS v2
+
+🦁 Built for safari property management excellence
