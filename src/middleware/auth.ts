@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../services/oauth.js";
+import { securityLogger } from "../services/logger.js";
 
 /**
  * Extend Express Request to include user info
@@ -60,6 +61,7 @@ export async function authenticateToken(
   // Verify token
   const user = await verifyAccessToken(token);
   if (!user) {
+    securityLogger.tokenVerificationFailed("Invalid or expired token", req.ip);
     res.status(401).json({
       error: "invalid_token",
       error_description: "Invalid or expired access token",

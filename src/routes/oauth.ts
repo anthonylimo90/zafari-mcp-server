@@ -9,8 +9,19 @@ import {
   authenticateUser,
   validateRedirectUri,
 } from "../services/oauth.js";
+import { securityLogger } from "../services/logger.js";
 
 const router = Router();
+
+/**
+ * Allowed OAuth client IDs
+ */
+const ALLOWED_CLIENT_IDS = new Set(
+  (process.env.ALLOWED_CLIENT_IDS || "claude-desktop,mcp-inspector")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+);
 
 /**
  * OAuth 2.1 Authorization Endpoint
@@ -39,6 +50,15 @@ router.get("/authorize", (req: Request, res: Response) => {
     return res.status(400).json({
       error: "invalid_request",
       error_description: "client_id is required",
+    });
+  }
+
+  // Validate client ID against whitelist
+  if (!ALLOWED_CLIENT_IDS.has(client_id as string)) {
+    securityLogger.unauthorizedClient(client_id as string, req.ip);
+    return res.status(400).json({
+      error: "unauthorized_client",
+      error_description: "Invalid or unregistered client_id",
     });
   }
 
@@ -163,20 +183,23 @@ router.get("/authorize", (req: Request, res: Response) => {
  * OAuth 2.1 Authorization POST Handler
  * POST /oauth/authorize
  */
-router.post("/authorize", (req: Request, res: Response) => {
+router.post("/authorize", async (req: Request, res: Response) => {
   const { username, password, redirect_uri, state, code_challenge } = req.body;
 
   // Authenticate user
-  const userId = authenticateUser(username, password);
+  const userId = await authenticateUser(username, password);
   if (!userId) {
+    securityLogger.authFailure(username, req.ip, "Invalid credentials");
     return res.status(401).json({
       error: "invalid_credentials",
       error_description: "Invalid username or password",
     });
   }
 
+  securityLogger.authSuccess(userId, req.ip);
+
   // Generate authorization code
-  const code = generateAuthCode(userId, code_challenge);
+  const code = await generateAuthCode(userId, code_challenge);
 
   // Build redirect URL
   const redirectUrl = new URL(redirect_uri);
@@ -212,7 +235,7 @@ router.post("/token", async (req: Request, res: Response) => {
       });
     }
 
-    const result = verifyAuthCode(code, code_verifier);
+    const result = await verifyAuthCode(code, code_verifier);
     if (!result) {
       return res.status(400).json({
         error: "invalid_grant",
@@ -221,7 +244,7 @@ router.post("/token", async (req: Request, res: Response) => {
     }
 
     const accessToken = await generateAccessToken(result.userId);
-    const refreshToken = generateRefreshToken(result.userId);
+    const refreshToken = await generateRefreshToken(result.userId);
 
     return res.json({
       access_token: accessToken,
@@ -241,7 +264,7 @@ router.post("/token", async (req: Request, res: Response) => {
       });
     }
 
-    const result = verifyRefreshToken(refresh_token);
+    const result = await verifyRefreshToken(refresh_token);
     if (!result) {
       return res.status(400).json({
         error: "invalid_grant",
@@ -250,10 +273,10 @@ router.post("/token", async (req: Request, res: Response) => {
     }
 
     const accessToken = await generateAccessToken(result.userId);
-    const newRefreshToken = generateRefreshToken(result.userId);
+    const newRefreshToken = await generateRefreshToken(result.userId);
 
     // Revoke old refresh token
-    revokeRefreshToken(refresh_token);
+    await revokeRefreshToken(refresh_token);
 
     return res.json({
       access_token: accessToken,

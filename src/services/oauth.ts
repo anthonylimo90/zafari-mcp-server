@@ -1,42 +1,126 @@
-import { SignJWT, jwtVerify, generateSecret } from "jose";
+import { SignJWT, jwtVerify } from "jose";
 import crypto from "crypto";
+import bcrypt from "bcrypt";
+import { tokenStorage } from "./storage.js";
+import { logger, securityLogger, logError } from "./logger.js";
 
 /**
- * OAuth 2.1 utilities for MCP server
- * Implements a simple OAuth server for development/testing
+ * OAuth 2.1 utilities for MCP server with enhanced security
+ * - Password hashing with bcrypt
+ * - Configurable token storage (Redis/in-memory)
+ * - Strict JWT secret validation
+ * - Authorization code replay protection
  */
 
-// In-memory storage (replace with database in production)
-const authCodes = new Map<string, { userId: string; codeChallenge?: string; expiresAt: number }>();
-const refreshTokens = new Map<string, { userId: string; expiresAt: number }>();
+// Track used authorization codes to prevent replay attacks
+const usedAuthCodes = new Set<string>();
 
-// JWT secret (generate once and store securely in production)
+// JWT secret (must be set via environment variable)
 let jwtSecret: Uint8Array;
 
+/**
+ * Get and validate JWT secret
+ * Enforces strict security requirements
+ */
 async function getJWTSecret(): Promise<Uint8Array> {
   if (!jwtSecret) {
-    // In production, load this from environment or secure storage
     const secretEnv = process.env.JWT_SECRET;
-    if (secretEnv) {
-      jwtSecret = new TextEncoder().encode(secretEnv);
-    } else {
-      // Generate a new secret (only for development)
-      const generatedSecret = await generateSecret("HS256");
-      // Convert CryptoKey to Uint8Array
-      const keyBuffer = await crypto.subtle.exportKey("raw", generatedSecret as crypto.webcrypto.CryptoKey);
-      jwtSecret = new Uint8Array(keyBuffer);
-      console.warn("⚠️  Generated new JWT secret. Set JWT_SECRET env var for production.");
+
+    // Strict requirement: JWT_SECRET must be set
+    if (!secretEnv) {
+      throw new Error(
+        "JWT_SECRET environment variable is required. Generate one with: openssl rand -base64 64"
+      );
     }
+
+    // Validate minimum length
+    if (secretEnv.length < 32) {
+      throw new Error(
+        "JWT_SECRET must be at least 32 characters long for security"
+      );
+    }
+
+    jwtSecret = new TextEncoder().encode(secretEnv);
+    logger.info("JWT secret loaded successfully");
   }
   return jwtSecret;
 }
 
 /**
+ * Hash password with bcrypt
+ */
+async function hashPassword(password: string): Promise<string> {
+  const saltRounds = 10;
+  return bcrypt.hash(password, saltRounds);
+}
+
+/**
+ * Verify password against bcrypt hash
+ */
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
+
+/**
+ * Get hashed passwords from environment
+ * In production, these should be pre-hashed in the database
+ */
+async function getHashedPasswords(): Promise<Map<string, string>> {
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const demoPassword = process.env.DEMO_PASSWORD;
+
+  // Validate password requirements
+  const validatePassword = (password: string | undefined, name: string): string => {
+    if (!password) {
+      throw new Error(
+        `${name} environment variable is required. Set a strong password (minimum 12 characters).`
+      );
+    }
+
+    if (password.length < 12) {
+      throw new Error(
+        `${name} must be at least 12 characters long. Current length: ${password.length}`
+      );
+    }
+
+    // Check for basic complexity
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+    if (!hasUpper || !hasLower || !hasNumber || !hasSpecial) {
+      logger.warn(
+        `${name} should contain uppercase, lowercase, numbers, and special characters for better security`
+      );
+    }
+
+    return password;
+  };
+
+  const validatedAdminPw = validatePassword(adminPassword, "ADMIN_PASSWORD");
+  const validatedDemoPw = validatePassword(demoPassword, "DEMO_PASSWORD");
+
+  // Hash passwords (in production, these would be pre-hashed in database)
+  const hashedPasswords = new Map<string, string>();
+  hashedPasswords.set("admin", await hashPassword(validatedAdminPw));
+  hashedPasswords.set("demo", await hashPassword(validatedDemoPw));
+
+  return hashedPasswords;
+}
+
+// Cache hashed passwords (initialized on first use)
+let hashedPasswordsCache: Map<string, string> | null = null;
+
+/**
  * Generate authorization code
  */
-export function generateAuthCode(userId: string, codeChallenge?: string): string {
+export async function generateAuthCode(
+  userId: string,
+  codeChallenge?: string
+): Promise<string> {
   const code = crypto.randomBytes(32).toString("base64url");
-  authCodes.set(code, {
+  await tokenStorage.setAuthCode(code, {
     userId,
     codeChallenge,
     expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
@@ -46,17 +130,24 @@ export function generateAuthCode(userId: string, codeChallenge?: string): string
 
 /**
  * Verify and consume authorization code
+ * Includes replay attack protection
  */
-export function verifyAuthCode(
+export async function verifyAuthCode(
   code: string,
   codeVerifier?: string
-): { userId: string } | null {
-  const data = authCodes.get(code);
+): Promise<{ userId: string } | null> {
+  // Check for replay attacks
+  if (usedAuthCodes.has(code)) {
+    securityLogger.codeReplayAttempt(code.substring(0, 10));
+    return null;
+  }
+
+  const data = await tokenStorage.getAuthCode(code);
   if (!data) return null;
 
   // Check expiration
   if (Date.now() > data.expiresAt) {
-    authCodes.delete(code);
+    await tokenStorage.deleteAuthCode(code);
     return null;
   }
 
@@ -71,7 +162,12 @@ export function verifyAuthCode(
   }
 
   // Consume code (one-time use)
-  authCodes.delete(code);
+  await tokenStorage.deleteAuthCode(code);
+  usedAuthCodes.add(code);
+
+  // Clean up used codes after 1 hour
+  setTimeout(() => usedAuthCodes.delete(code), 60 * 60 * 1000);
+
   return { userId: data.userId };
 }
 
@@ -100,9 +196,9 @@ export async function generateAccessToken(
 /**
  * Generate refresh token
  */
-export function generateRefreshToken(userId: string): string {
+export async function generateRefreshToken(userId: string): Promise<string> {
   const token = crypto.randomBytes(32).toString("base64url");
-  refreshTokens.set(token, {
+  await tokenStorage.setRefreshToken(token, {
     userId,
     expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
   });
@@ -112,12 +208,14 @@ export function generateRefreshToken(userId: string): string {
 /**
  * Verify refresh token
  */
-export function verifyRefreshToken(token: string): { userId: string } | null {
-  const data = refreshTokens.get(token);
+export async function verifyRefreshToken(
+  token: string
+): Promise<{ userId: string } | null> {
+  const data = await tokenStorage.getRefreshToken(token);
   if (!data) return null;
 
   if (Date.now() > data.expiresAt) {
-    refreshTokens.delete(token);
+    await tokenStorage.deleteRefreshToken(token);
     return null;
   }
 
@@ -127,8 +225,8 @@ export function verifyRefreshToken(token: string): { userId: string } | null {
 /**
  * Revoke refresh token
  */
-export function revokeRefreshToken(token: string): void {
-  refreshTokens.delete(token);
+export async function revokeRefreshToken(token: string): Promise<void> {
+  await tokenStorage.deleteRefreshToken(token);
 }
 
 /**
@@ -150,27 +248,40 @@ export async function verifyAccessToken(token: string): Promise<{
       scopes: (payload.scope as string)?.split(" ") || [],
     };
   } catch (error) {
-    console.error("Token verification failed:", error);
+    logError("Token verification failed", error);
     return null;
   }
 }
 
 /**
- * Simple user authentication (replace with real auth in production)
+ * Authenticate user with bcrypt password verification
  */
-export function authenticateUser(username: string, password: string): string | null {
-  // In production, verify against database with hashed passwords
-  const validUsers = new Map<string, string>([
-    ["admin", process.env.ADMIN_PASSWORD || "admin123"],
-    ["demo", process.env.DEMO_PASSWORD || "demo123"],
-  ]);
+export async function authenticateUser(
+  username: string,
+  password: string
+): Promise<string | null> {
+  try {
+    // Initialize password cache if needed
+    if (!hashedPasswordsCache) {
+      hashedPasswordsCache = await getHashedPasswords();
+    }
 
-  const storedPassword = validUsers.get(username);
-  if (storedPassword && storedPassword === password) {
-    return username; // Return user ID
+    const storedHash = hashedPasswordsCache.get(username);
+    if (!storedHash) {
+      return null;
+    }
+
+    // Use bcrypt's constant-time comparison
+    const isValid = await verifyPassword(password, storedHash);
+    if (isValid) {
+      return username; // Return user ID
+    }
+
+    return null;
+  } catch (error) {
+    logError("Authentication error", error);
+    return null;
   }
-
-  return null;
 }
 
 /**
@@ -195,27 +306,3 @@ export function validateRedirectUri(uri: string): boolean {
     return false;
   }
 }
-
-/**
- * Clean up expired tokens (run periodically)
- */
-export function cleanupExpiredTokens(): void {
-  const now = Date.now();
-
-  // Clean auth codes
-  for (const [code, data] of authCodes.entries()) {
-    if (now > data.expiresAt) {
-      authCodes.delete(code);
-    }
-  }
-
-  // Clean refresh tokens
-  for (const [token, data] of refreshTokens.entries()) {
-    if (now > data.expiresAt) {
-      refreshTokens.delete(token);
-    }
-  }
-}
-
-// Run cleanup every 5 minutes
-setInterval(cleanupExpiredTokens, 5 * 60 * 1000);

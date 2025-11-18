@@ -5,6 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
 import cookieParser from "cookie-parser";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
+import cors from "cors";
 import { registerPropertyTools } from "./tools/properties.js";
 import { registerRoomTools } from "./tools/rooms.js";
 import { registerExtraServiceTools } from "./tools/extras.js";
@@ -12,6 +15,7 @@ import { registerBookingTools } from "./tools/bookings.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 import oauthRouter from "./routes/oauth.js";
 import { authenticateToken } from "./middleware/auth.js";
+import { logger, securityLogger } from "./services/logger.js";
 
 // Initialize MCP server
 const server = new McpServer({
@@ -41,10 +45,91 @@ async function runStdio(): Promise<void> {
 async function runHTTP(): Promise<void> {
   const app = express();
 
-  // Middleware
+  // Trust proxy - important for rate limiting and IP logging
+  app.set("trust proxy", 1);
+
+  // Security headers
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+        },
+      },
+      hsts: {
+        maxAge: 31536000, // 1 year
+        includeSubDomains: true,
+        preload: true,
+      },
+    })
+  );
+
+  // CORS configuration
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+    : ["https://claude.ai"];
+
+  app.use(
+    cors({
+      origin: allowedOrigins,
+      credentials: true,
+      optionsSuccessStatus: 200,
+    })
+  );
+
+  // Rate limiting - strict for auth endpoints
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 attempts
+    message: { error: "too_many_requests", error_description: "Too many authentication attempts, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+      securityLogger.rateLimitExceeded(req.ip || "unknown", req.path);
+      res.status(429).json({
+        error: "too_many_requests",
+        error_description: "Too many authentication attempts, please try again later",
+      });
+    },
+  });
+
+  // Rate limiting - generous for API endpoints
+  const apiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 100, // 100 requests
+    message: { error: "too_many_requests", error_description: "Too many requests, please slow down" },
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+      securityLogger.rateLimitExceeded(req.ip || "unknown", req.path);
+      res.status(429).json({
+        error: "too_many_requests",
+        error_description: "Too many requests, please slow down",
+      });
+    },
+  });
+
+  // Basic middleware
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
+
+  // Request logging
+  app.use((req, _res, next) => {
+    logger.info("HTTP request", {
+      method: req.method,
+      path: req.path,
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+    next();
+  });
+
+  // Apply rate limiting to auth endpoints
+  app.use("/oauth/authorize", authLimiter);
+  app.use("/oauth/token", authLimiter);
 
   // OAuth routes (must come before auth middleware)
   app.use(oauthRouter);
@@ -60,6 +145,7 @@ async function runHTTP(): Promise<void> {
   });
 
   // Apply authentication middleware to all MCP endpoints
+  app.use("/mcp", apiLimiter); // Rate limit for MCP endpoints
   app.use(authenticateToken);
 
   // MCP endpoint (protected)
@@ -79,18 +165,28 @@ async function runHTTP(): Promise<void> {
   const host = process.env.HOST || "localhost";
 
   app.listen(port, () => {
-    console.error("====================================");
-    console.error("Zafari MCP Server with OAuth 2.1");
-    console.error("====================================");
-    console.error(`MCP Endpoint: http://${host}:${port}/mcp`);
-    console.error(`OAuth Metadata: http://${host}:${port}/.well-known/oauth-authorization-server`);
-    console.error(`Authorization: http://${host}:${port}/oauth/authorize`);
-    console.error(`Health Check: http://${host}:${port}/health`);
-    console.error("====================================");
-    console.error("OAuth Credentials (Development):");
-    console.error("  Username: demo");
-    console.error("  Password: demo123");
-    console.error("====================================");
+    logger.info("====================================");
+    logger.info("Zafari MCP Server with OAuth 2.1");
+    logger.info("====================================");
+    logger.info(`MCP Endpoint: http://${host}:${port}/mcp`);
+    logger.info(`OAuth Metadata: http://${host}:${port}/.well-known/oauth-authorization-server`);
+    logger.info(`Authorization: http://${host}:${port}/oauth/authorize`);
+    logger.info(`Health Check: http://${host}:${port}/health`);
+    logger.info("====================================");
+    logger.info("Security Features Enabled:");
+    logger.info("  ✓ Rate Limiting (Auth: 5/15min, API: 100/min)");
+    logger.info("  ✓ CORS Protection");
+    logger.info("  ✓ Security Headers (Helmet)");
+    logger.info("  ✓ Request Logging");
+    logger.info("  ✓ Password Hashing (bcrypt)");
+    logger.info(`  ✓ Token Storage: ${process.env.STORAGE_BACKEND || "memory"}`);
+    logger.info("====================================");
+    if (process.env.NODE_ENV !== "production") {
+      logger.info("OAuth Credentials (Development):");
+      logger.info("  Username: demo");
+      logger.info("  Password: (set in .env)");
+      logger.info("====================================");
+    }
   });
 }
 
