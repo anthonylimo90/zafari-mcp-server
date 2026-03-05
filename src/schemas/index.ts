@@ -1,173 +1,148 @@
 import { z } from "zod";
+import { DEFAULT_PAGE_SIZE } from "../constants.js";
 
-// Common schemas
-export const ResponseFormatSchema = z.enum(["markdown", "json"])
-  .default("json")
-  .describe("Output format: 'json' for structured data (recommended for Claude Desktop) or 'markdown' for human-readable");
+export const OutputFormatSchema = z.enum(["json", "markdown", "text"]);
+export type OutputFormat = z.infer<typeof OutputFormatSchema>;
 
-export const DateSchema = z.string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
-  .describe("Date in YYYY-MM-DD format");
+export const DateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 
-export const PropertyIdSchema = z.string()
-  .min(1, "Property ID is required")
-  .describe("Property ID");
+export const PropertyIdSchema = z.string().min(1, "Property ID is required");
+export const RoomIdSchema = z.string().min(1, "Room ID is required");
+export const BookingIdSchema = z.string().min(1, "Booking ID is required");
+export const ExtraServiceIdSchema = z.string().min(1, "Extra service ID is required");
 
-// Property schemas
-export const ListPropertiesSchema = {
-  response_format: ResponseFormatSchema,
-};
+export const ResidentTypeSchema = z.enum(["resident", "non_resident"]);
+export const BookingStatusSchema = z.enum(["pending", "confirmed", "cancelled", "completed"]);
 
-// Room schemas
-export const ListRoomsSchema = {
+export const RoomBookingSchema = z.object({
+  room_id: RoomIdSchema,
+  quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
+});
+
+export const ExtraBookingSchema = z.object({
+  extra_service_id: ExtraServiceIdSchema,
+  quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
+});
+
+export const BookingPayloadSchema = z.object({
+  check_in: DateSchema,
+  check_out: DateSchema,
+  guest_first_name: z.string().min(1, "Guest first name is required"),
+  guest_last_name: z.string().min(1, "Guest last name is required"),
+  guest_email: z.string().email("Invalid email format"),
+  guest_phone: z.string().optional(),
+  guest_country: z.string().optional(),
+  rooms: z.array(RoomBookingSchema).min(1, "At least one room is required"),
+  extras: z.array(ExtraBookingSchema).optional(),
+});
+export type BookingPayload = z.infer<typeof BookingPayloadSchema>;
+
+export const ListPropertiesOptionsSchema = z.object({});
+export type ListPropertiesOptions = z.infer<typeof ListPropertiesOptionsSchema>;
+
+export const ListRoomsOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  response_format: ResponseFormatSchema,
-};
+});
+export type ListRoomsOptions = z.infer<typeof ListRoomsOptionsSchema>;
 
-export const GetRoomAvailabilitySchema = {
+export const RoomAvailabilityOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  room_id: z.string().min(1, "Room ID is required").describe("Room type ID"),
-  from: DateSchema.describe("Start date for availability check"),
-  to: DateSchema.describe("End date for availability check"),
-  response_format: ResponseFormatSchema,
-};
+  room_id: RoomIdSchema,
+  from: DateSchema,
+  to: DateSchema,
+});
+export type RoomAvailabilityOptions = z.infer<typeof RoomAvailabilityOptionsSchema>;
 
-export const GetRoomRatesSchema = {
+export const RoomRatesOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  room_id: z.string().min(1, "Room ID is required").describe("Room type ID"),
-  from: DateSchema.describe("Start date for rates"),
-  to: DateSchema.describe("End date for rates"),
-  resident_type: z.enum(["resident", "non_resident"])
-    .optional()
-    .describe("Resident type filter (resident or non_resident)"),
-  response_format: ResponseFormatSchema,
-};
+  room_id: RoomIdSchema,
+  from: DateSchema,
+  to: DateSchema,
+  resident_type: ResidentTypeSchema.optional(),
+});
+export type RoomRatesOptions = z.infer<typeof RoomRatesOptionsSchema>;
 
-export const UpdateRoomAvailabilitySchema = {
+export const UpdateRoomAvailabilityOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  room_id: z.string().min(1, "Room ID is required").describe("Room type ID"),
-  from: DateSchema.describe("Start date for availability update"),
-  to: DateSchema.describe("End date for availability update"),
-  availability: z.number()
-    .int()
-    .min(0, "Availability must be non-negative")
-    .nullable()
-    .describe("Number of available units (null for unlimited)"),
-};
+  room_id: RoomIdSchema,
+  from: DateSchema,
+  to: DateSchema,
+  availability: z.number().int().min(0).nullable(),
+});
+export type UpdateRoomAvailabilityOptions = z.infer<typeof UpdateRoomAvailabilityOptionsSchema>;
 
-export const UpdateRoomRatesSchema = {
+export const UpdateRoomRatesOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  room_id: z.string().min(1, "Room ID is required").describe("Room type ID"),
-  from: DateSchema.describe("Start date for rate update"),
-  to: DateSchema.describe("End date for rate update"),
-  rate: z.number()
-    .positive("Rate must be positive")
-    .describe("Rate amount"),
-  resident_type: z.enum(["resident", "non_resident"])
-    .describe("Resident type (resident or non_resident)"),
-};
+  room_id: RoomIdSchema,
+  from: DateSchema,
+  to: DateSchema,
+  rate: z.coerce.number().positive("Rate must be positive"),
+  resident_type: ResidentTypeSchema,
+});
+export type UpdateRoomRatesOptions = z.infer<typeof UpdateRoomRatesOptionsSchema>;
 
-// Extra service schemas
-export const ListExtraServicesSchema = {
+export const ListExtraServicesOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  response_format: ResponseFormatSchema,
-};
+});
+export type ListExtraServicesOptions = z.infer<typeof ListExtraServicesOptionsSchema>;
 
-export const GetExtraServiceAvailabilitySchema = {
+export const ExtraServiceAvailabilityOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  extra_service_id: z.string()
-    .min(1, "Extra service ID is required")
-    .describe("Extra service ID (UUID format)"),
-  from: DateSchema.describe("Start date for availability check"),
-  to: DateSchema.describe("End date for availability check"),
-  response_format: ResponseFormatSchema,
-};
+  extra_service_id: ExtraServiceIdSchema,
+  from: DateSchema,
+  to: DateSchema,
+});
+export type ExtraServiceAvailabilityOptions = z.infer<typeof ExtraServiceAvailabilityOptionsSchema>;
 
-export const UpdateExtraServiceAvailabilitySchema = {
+export const UpdateExtraServiceAvailabilityOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  extra_service_id: z.string()
-    .min(1, "Extra service ID is required")
-    .describe("Extra service ID (UUID format)"),
-  from: DateSchema.describe("Start date for availability update"),
-  to: DateSchema.describe("End date for availability update"),
-  availability: z.number()
-    .int()
-    .min(0, "Availability must be non-negative")
-    .nullable()
-    .describe("Number of available units (null for unlimited)"),
-};
+  extra_service_id: ExtraServiceIdSchema,
+  from: DateSchema,
+  to: DateSchema,
+  availability: z.number().int().min(0).nullable(),
+});
+export type UpdateExtraServiceAvailabilityOptions = z.infer<typeof UpdateExtraServiceAvailabilityOptionsSchema>;
 
-// Booking schemas
-export const ListBookingsSchema = {
+export const ListBookingsOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  status: z.enum(["pending", "confirmed", "cancelled", "completed"])
-    .optional()
-    .describe("Filter by booking status"),
-  from_date: DateSchema.optional().describe("Filter bookings from this date"),
-  to_date: DateSchema.optional().describe("Filter bookings until this date"),
-  limit: z.number()
-    .int()
-    .min(1)
-    .max(100)
-    .default(50)
-    .describe("Maximum results to return (1-100)"),
-  offset: z.number()
-    .int()
-    .min(0)
-    .default(0)
-    .describe("Number of results to skip for pagination"),
-  response_format: ResponseFormatSchema,
-};
+  status: BookingStatusSchema.optional(),
+  from_date: DateSchema.optional(),
+  to_date: DateSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(DEFAULT_PAGE_SIZE),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type ListBookingsOptions = z.infer<typeof ListBookingsOptionsSchema>;
 
-export const GetBookingSchema = {
+export const GetBookingOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  booking_id: z.string().min(1, "Booking ID is required").describe("Booking ID"),
-  response_format: ResponseFormatSchema,
-};
+  booking_id: BookingIdSchema,
+});
+export type GetBookingOptions = z.infer<typeof GetBookingOptionsSchema>;
 
-export const CreateBookingSchema = {
+export const CreateBookingOptionsSchema = BookingPayloadSchema.extend({
   property_id: PropertyIdSchema,
-  check_in: DateSchema.describe("Check-in date"),
-  check_out: DateSchema.describe("Check-out date"),
-  guest_first_name: z.string().min(1, "Guest first name is required").describe("Guest first name"),
-  guest_last_name: z.string().min(1, "Guest last name is required").describe("Guest last name"),
-  guest_email: z.string().email("Invalid email format").describe("Guest email address"),
-  guest_phone: z.string().optional().describe("Guest phone number"),
-  guest_country: z.string().optional().describe("Guest country"),
-  rooms: z.array(z.object({
-    room_id: z.string().min(1, "Room ID is required"),
-    quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  })).min(1, "At least one room is required").describe("Array of room bookings"),
-  extras: z.array(z.object({
-    extra_service_id: z.string().min(1, "Extra service ID is required"),
-    quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  })).optional().describe("Array of extra service bookings"),
-};
+});
+export type CreateBookingOptions = z.infer<typeof CreateBookingOptionsSchema>;
 
-export const UpdateBookingStatusSchema = {
+export const UpdateBookingStatusOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  booking_id: z.string().min(1, "Booking ID is required").describe("Booking ID"),
-  status: z.enum(["pending", "confirmed", "cancelled", "completed"])
-    .describe("New booking status"),
-};
+  booking_id: BookingIdSchema,
+  status: BookingStatusSchema,
+});
+export type UpdateBookingStatusOptions = z.infer<typeof UpdateBookingStatusOptionsSchema>;
 
-// Webhook schemas
-export const GetWebhookConfigSchema = {
+export const GetWebhookConfigOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-};
+});
+export type GetWebhookConfigOptions = z.infer<typeof GetWebhookConfigOptionsSchema>;
 
-export const UpdateWebhookConfigSchema = {
+export const UpdateWebhookConfigOptionsSchema = z.object({
   property_id: PropertyIdSchema,
-  url: z.string()
-    .url("Invalid URL format")
-    .describe("Webhook endpoint URL"),
-  events: z.array(z.string())
-    .min(1, "At least one event is required")
-    .describe("Array of event types to listen for"),
-  rooms: z.array(z.string())
-    .optional()
-    .describe("Array of room IDs to filter events (optional)"),
-  extra_services: z.array(z.string())
-    .optional()
-    .describe("Array of extra service IDs to filter events (optional)"),
-};
+  url: z.string().url("Invalid webhook URL"),
+  events: z.array(z.string().min(1, "Event is required")).min(1, "At least one event is required"),
+  rooms: z.array(z.string().min(1)).optional(),
+  extra_services: z.array(z.string().min(1)).optional(),
+});
+export type UpdateWebhookConfigOptions = z.infer<typeof UpdateWebhookConfigOptionsSchema>;

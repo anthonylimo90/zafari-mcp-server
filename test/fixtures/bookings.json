@@ -1,0 +1,68 @@
+[
+  {
+    "id": "booking_001",
+    "property_id": "prop_123",
+    "reference": "BK-001",
+    "status": "confirmed",
+    "check_in": "2026-04-10",
+    "check_out": "2026-04-12",
+    "guests": 2,
+    "total_amount": 900,
+    "currency": "USD",
+    "guest_details": {
+      "first_name": "Amina",
+      "last_name": "Otieno",
+      "email": "amina@example.com",
+      "phone": "+254700000000",
+      "country": "KE"
+    },
+    "rooms": [
+      {
+        "room_id": "room_456",
+        "room_name": "Luxury Tent",
+        "quantity": 1,
+        "rate": 450,
+        "nights": 2
+      }
+    ],
+    "extras": [
+      {
+        "extra_service_id": "extra_001",
+        "title": "Game Drive",
+        "quantity": 2,
+        "price": 50
+      }
+    ],
+    "datetime_created": "2026-03-01T00:00:00Z",
+    "datetime_updated": "2026-03-01T00:00:00Z"
+  },
+  {
+    "id": "booking_002",
+    "property_id": "prop_123",
+    "reference": "BK-002",
+    "status": "pending",
+    "check_in": "2026-05-01",
+    "check_out": "2026-05-03",
+    "guests": 3,
+    "total_amount": 1200,
+    "currency": "USD",
+    "guest_details": {
+      "first_name": "Daniel",
+      "last_name": "Mwangi",
+      "email": "daniel@example.com",
+      "country": "KE"
+    },
+    "rooms": [
+      {
+        "room_id": "room_789",
+        "room_name": "Family Cottage",
+        "quantity": 1,
+        "rate": 600,
+        "nights": 2
+      }
+    ],
+    "extras": [],
+    "datetime_created": "2026-03-02T00:00:00Z",
+    "datetime_updated": "2026-03-02T00:00:00Z"
+  }
+]
