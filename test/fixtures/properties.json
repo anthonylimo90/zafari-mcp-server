@@ -1,0 +1,44 @@
+[
+  {
+    "id": "prop_123",
+    "business_entity_id": "biz_001",
+    "name": "Savanna Lodge",
+    "country_code": "KE",
+    "property_type_id": "lodge",
+    "is_active": true,
+    "is_verified": true,
+    "is_deleted": false,
+    "address": {
+      "street": "1 Mara Road",
+      "city": "Narok",
+      "country": "Kenya"
+    },
+    "email": {
+      "email": "reservations@savanna.example",
+      "is_verified": true,
+      "datetime_created": "2026-01-01T00:00:00Z",
+      "datetime_updated": "2026-01-01T00:00:00Z"
+    },
+    "tel": {
+      "calling_code": 254,
+      "nsn": "700000001",
+      "is_verified": true,
+      "datetime_created": "2026-01-01T00:00:00Z",
+      "datetime_updated": "2026-01-01T00:00:00Z"
+    },
+    "datetime_created": "2026-01-01T00:00:00Z",
+    "datetime_updated": "2026-01-01T00:00:00Z"
+  },
+  {
+    "id": "prop_456",
+    "business_entity_id": "biz_002",
+    "name": "River Camp",
+    "country_code": "TZ",
+    "property_type_id": "camp",
+    "is_active": true,
+    "is_verified": false,
+    "is_deleted": false,
+    "datetime_created": "2026-01-05T00:00:00Z",
+    "datetime_updated": "2026-01-05T00:00:00Z"
+  }
+]

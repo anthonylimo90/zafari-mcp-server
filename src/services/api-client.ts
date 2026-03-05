@@ -1,17 +1,23 @@
-import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from "axios";
-import { API_BASE_URL, API_KEY_HEADER } from "../constants.js";
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
+import { API_BASE_URL, API_KEY_HEADER, DEFAULT_REQUEST_TIMEOUT_MS } from "../constants.js";
+
+export interface APIClientOptions {
+  apiKey: string;
+  baseURL?: string;
+  timeoutMs?: number;
+}
 
 export class ZafariAPIClient {
   private client: AxiosInstance;
 
-  constructor(apiKey: string) {
+  constructor(options: APIClientOptions) {
     this.client = axios.create({
-      baseURL: API_BASE_URL,
+      baseURL: options.baseURL ?? API_BASE_URL,
       headers: {
-        [API_KEY_HEADER]: apiKey,
+        [API_KEY_HEADER]: options.apiKey,
         "Content-Type": "application/json",
       },
-      timeout: 30000,
+      timeout: options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
     });
   }
 
@@ -101,16 +107,21 @@ export class ZafariAPIClient {
   }
 }
 
-// Singleton instance factory
-let apiClientInstance: ZafariAPIClient | null = null;
+export interface ResolvedAPIClientOptions {
+  apiKey?: string;
+  baseURL?: string;
+  timeoutMs?: number;
+}
 
-export function getAPIClient(): ZafariAPIClient {
-  if (!apiClientInstance) {
-    const apiKey = process.env.ZAFARI_API_KEY;
-    if (!apiKey) {
-      throw new Error("ZAFARI_API_KEY environment variable is required");
-    }
-    apiClientInstance = new ZafariAPIClient(apiKey);
+export function createAPIClient(options: ResolvedAPIClientOptions = {}): ZafariAPIClient {
+  const apiKey = options.apiKey ?? process.env.ZAFARI_API_KEY;
+  if (!apiKey) {
+    throw new Error("ZAFARI_API_KEY environment variable is required");
   }
-  return apiClientInstance;
+
+  return new ZafariAPIClient({
+    apiKey,
+    baseURL: options.baseURL ?? process.env.ZAFARI_BASE_URL ?? API_BASE_URL,
+    timeoutMs: options.timeoutMs,
+  });
 }
